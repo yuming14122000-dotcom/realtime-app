@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>講師大螢幕</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+  <!-- 引入 qrcode.js 來自動產生 QR Code -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    body { font-family: "Microsoft JhengHei", sans-serif; background: #222; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; position: relative; }
+    #stats { position: absolute; top: 20px; right: 30px; font-size: 24px; font-weight: bold; }
+    #qrcode-container { position: absolute; top: 20px; left: 30px; background: white; padding: 10px; border-radius: 8px; text-align: center; }
+    #qrcode-container p { color: black; margin: 0 0 5px 0; font-size: 14px; font-weight: bold; }
+    #canvas-container { width: 80%; height: 70vh; background: #333; border-radius: 10px; margin-top: 20px; }
+    h1 { margin-top: 10px; }
+    #qrcode-url { color: black; font-size: 12px; margin-top: 5px; word-break: break-all; width: 128px; }
+  </style>
+</head>
+<body>
+  <div id="stats">👥 在線人數：<span id="count">0</span></div>
+  
+  <!-- QR Code 顯示區塊 -->
+  <div id="qrcode-container">
+    <p>掃碼參與互動</p>
+    <div id="qrcode"></div>
+    <div id="qrcode-url"></div>
+  </div>
+  
+  <h1>請用一個詞形容今天的課程？</h1>
+  <div id="canvas-container">
+    <canvas id="cloud_canvas"></canvas>
+  </div>
+  
+  <button onclick="clearWords()" style="margin-top:20px; padding:10px 20px; cursor:pointer;">清空文字雲</button>
+
+  <script>
+    const socket = io();
+    const canvas = document.getElementById('cloud_canvas');
+    
+    function resizeCanvas() {
+        const container = document.getElementById('canvas-container');
+        canvas.width = container.offsetWidth;
+        canvas.height = container.offsetHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    socket.on('update-count', (count) => {
+      document.getElementById('count').innerText = count;
+    });
+
+    socket.on('update-words', (wordCounts) => {
+      const list = Object.keys(wordCounts).map(word => [word, wordCounts[word] * 20 + 20]);
+      WordCloud(canvas, { 
+        list: list, 
+        gridSize: 10, 
+        weightFactor: 1, 
+        color: 'random-light', 
+        backgroundColor: '#333'
+      });
+    });
+
+    function clearWords() {
+      socket.emit('clear-words');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // 自動產生 QR Code 的邏輯
+    window.onload = function() {
+      // 自動抓取目前的網址 (例如 http://192.168.0.201:3000)
+      // 並把結尾的 /screen.html 拿掉，這就是學員要連的網址
+      let currentUrl = window.location.origin; 
+      
+      document.getElementById('qrcode-url').innerText = currentUrl;
+      
+      // 使用 qrcode.js 產生 QR Code
+      new QRCode(document.getElementById("qrcode"), {
+        text: currentUrl,
+        width: 128,
+        height: 128,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+      });
+    };
+  </script>
+</body>
+</html>
