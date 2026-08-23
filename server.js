@@ -7,7 +7,7 @@ app.use(express.static('public'));
 
 let onlineCount = 0;
 let wordCounts = {};
-// 新增：用來記錄每個人送出的詳細資料
+// 用來記錄每個人送出的詳細資料
 let rawResponses = []; 
 
 io.on('connection', (socket) => {
@@ -38,8 +38,12 @@ io.on('connection', (socket) => {
   });
   
   socket.on('clear-words', () => {
-    wordCounts = {};
-    rawResponses = []; // 清空大螢幕時，後台紀錄也一起清空
+    wordCounts = {}; // 大螢幕文字雲依然清空
+    
+    // 後台不再清空陣列，而是插入一筆「分割線」資料
+    const timeString = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+    rawResponses.push({ isSeparator: true, time: timeString });
+    
     io.emit('update-words', wordCounts);
     io.emit('update-dashboard', rawResponses);
   });
