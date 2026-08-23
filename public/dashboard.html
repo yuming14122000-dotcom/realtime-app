@@ -26,7 +26,7 @@
         <tr>
           <th>時間</th>
           <th>學生姓名 / 暱稱</th>
-          <th>輸入的詞彙</th>
+          <th>輸入的詞彙 / 句子</th>
         </tr>
       </thead>
       <tbody id="tableBody">
@@ -53,11 +53,23 @@
       
       reversedResponses.forEach(res => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="color:#888;">${res.time}</td>
-          <td>${res.name}</td>
-          <td class="word-highlight">${res.word}</td>
-        `;
+        
+        // 判斷是不是分割線
+        if (res.isSeparator) {
+          tr.innerHTML = `
+            <td colspan="3" style="background-color: #ffeeba; color: #856404; text-align: center; font-weight: bold; font-size: 16px;">
+              🔼 以上為新一輪提問 / 🔽 以下為舊紀錄 (於 ${res.time} 清空畫面)
+            </td>
+          `;
+        } else {
+          // 一般學生的作答資料
+          tr.innerHTML = `
+            <td style="color:#888;">${res.time}</td>
+            <td>${res.name}</td>
+            <td class="word-highlight">${res.word}</td>
+          `;
+        }
+        
         tbody.appendChild(tr);
       });
     });
