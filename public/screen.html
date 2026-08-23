@@ -71,7 +71,7 @@
     window.onload = function() {
       // 自動抓取目前的網址 (例如 http://192.168.0.201:3000)
       // 並把結尾的 /screen.html 拿掉，這就是學員要連的網址
-      let currentUrl = window.location.origin; 
+      let currentUrl = window.location.origin + "/index.html";
       
       document.getElementById('qrcode-url').innerText = currentUrl;
       
