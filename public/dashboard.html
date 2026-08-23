@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>老師專用後台</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: "Microsoft JhengHei", sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    h1 { color: #333; text-align: center; }
+    .status { text-align: right; color: #666; font-size: 18px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 15px; border-bottom: 1px solid #ddd; text-align: left; font-size: 18px; }
+    th { background-color: #007bff; color: white; }
+    tr:hover { background-color: #f1f1f1; }
+    .word-highlight { color: #d9534f; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>👨‍🏫 老師即時監控後台</h1>
+    <div class="status">👥 目前在線人數：<span id="count" style="font-weight:bold; color:#007bff;">0</span></div>
+    
+    <table id="resultsTable">
+      <thead>
+        <tr>
+          <th>時間</th>
+          <th>學生姓名 / 暱稱</th>
+          <th>輸入的詞彙</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- 學生送出的資料會即時出現在這裡 -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const socket = io();
+
+    // 更新在線人數
+    socket.on('update-count', (count) => {
+      document.getElementById('count').innerText = count;
+    });
+
+    // 接收詳細作答紀錄
+    socket.on('update-dashboard', (responses) => {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = ""; 
+      
+      // 反轉陣列，讓「最新」送出的資料排在表格最上面
+      const reversedResponses = [...responses].reverse();
+      
+      reversedResponses.forEach(res => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="color:#888;">${res.time}</td>
+          <td>${res.name}</td>
+          <td class="word-highlight">${res.word}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    });
+  </script>
+</body>
+</html>
