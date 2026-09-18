@@ -3,55 +3,184 @@
 <head>
   <meta charset="UTF-8">
   <title>講師大螢幕</title>
+  
+  <!-- 載入 Socket.io, 文字雲套件, 以及自動生成 QR Code 的套件 -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
-  <!-- 引入 qrcode.js 來自動產生 QR Code -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
   <style>
-    body { font-family: "Microsoft JhengHei", sans-serif; background: #222; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; position: relative; }
-    #stats { position: absolute; top: 20px; right: 30px; font-size: 24px; font-weight: bold; }
-    #qrcode-container { position: absolute; top: 20px; left: 30px; background: white; padding: 10px; border-radius: 8px; text-align: center; }
-    #qrcode-container p { color: black; margin: 0 0 5px 0; font-size: 14px; font-weight: bold; }
-    #canvas-container { width: 80%; height: 70vh; background: #333; border-radius: 10px; margin-top: 20px; }
-    h1 { margin-top: 10px; }
-    #qrcode-url { color: black; font-size: 12px; margin-top: 5px; word-break: break-all; width: 128px; }
+    body {
+      font-family: "Microsoft JhengHei", sans-serif;
+      background: #222;
+      color: white;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+
+    /* 頂部排版：左邊 QR, 中間標題, 右邊人數 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      height: 120px; /* 預留高度給縮小的 QR Code */
+    }
+
+    /* QR Code 區塊 (包含白色背景與縮放設定) */
+    .qr-container {
+      background: white;
+      color: black;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      /* 在這裡控制縮放比例，0.7 代表縮小為 70% */
+      transform: scale(0.7); 
+      transform-origin: left top;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 140px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+    .qr-title { font-size: 14px; margin-bottom: 5px; font-weight: bold; }
+    #qrcode img { margin: 0 auto; } /* 讓 QR Code 置中 */
+    .qr-link { margin: 5px 0 0 0; font-size: 11px; font-weight: bold; word-break: break-all; color: #333; }
+
+    /* 中間標題 (可直接點擊編輯) */
+    .title-container {
+      flex-grow: 1;
+      text-align: center;
+      z-index: 10;
+    }
+    h1 {
+      margin: 0;
+      display: inline-block;
+      outline: none;
+      border-bottom: 2px dashed rgba(255,255,255,0.3);
+      padding-bottom: 5px;
+      transition: 0.3s;
+      cursor: text;
+    }
+    h1:focus { border-bottom: 2px dashed white; }
+
+    /* 右側在線人數 */
+    .stats {
+      font-size: 24px;
+      font-weight: bold;
+      position: absolute;
+      right: 0;
+      top: 20px;
+    }
+
+    /* 文字雲畫布區塊 */
+    #canvas-container {
+      flex-grow: 1;
+      background: #333;
+      border-radius: 10px;
+      position: relative;
+      width: 100%;
+      margin-top: 10px;
+    }
+    
+    .controls {
+      text-align: center;
+      margin-top: 15px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background: #555;
+      color: white;
+      transition: 0.2s;
+    }
+    button:hover { background: #777; }
   </style>
 </head>
 <body>
-  <div id="stats">👥 在線人數：<span id="count">0</span></div>
-  
-  <!-- QR Code 顯示區塊 -->
-  <div id="qrcode-container">
-    <p>掃碼參與互動</p>
-    <div id="qrcode"></div>
-    <div id="qrcode-url"></div>
+
+  <div class="header">
+    <!-- 左側：縮小後的 QR Code 區塊 -->
+    <div class="qr-container">
+      <div class="qr-title">掃碼參與互動</div>
+      <div id="qrcode"></div>
+      <p class="qr-link" id="qr-text">網址載入中...</p>
+    </div>
+
+    <!-- 中間：可點擊更改的標題 -->
+    <div class="title-container">
+      <h1 contenteditable="true" title="點擊即可直接修改標題">一起來看看大家的想法</h1>
+    </div>
+
+    <!-- 右側：在線人數 -->
+    <div class="stats">👥 在線人數：<span id="count">0</span></div>
   </div>
   
-  <h1>一起來看看大家的想法</h1>
+  <!-- 文字雲顯示區 -->
   <div id="canvas-container">
     <canvas id="cloud_canvas"></canvas>
   </div>
   
-  <button onclick="clearWords()" style="margin-top:20px; padding:10px 20px; cursor:pointer;">清空文字雲</button>
+  <!-- 底部控制按鈕 -->
+  <div class="controls">
+    <button onclick="clearWords()">🗑️ 清空文字雲</button>
+  </div>
 
   <script>
     const socket = io();
     const canvas = document.getElementById('cloud_canvas');
     
+    // --- 1. 自動產生學生端 QR Code ---
+    // 自動抓取目前的網址，並將結尾替換為 index.html
+    const currentUrl = window.location.href.split('?')[0]; 
+    const studentUrl = currentUrl.replace('screen.html', 'index.html');
+    
+    // 將網址顯示在圖片下方 (去掉 https:// 讓畫面更簡潔)
+    document.getElementById('qr-text').innerText = studentUrl.replace('https://', '');
+    
+    // 繪製 QR Code
+    new QRCode(document.getElementById("qrcode"), {
+        text: studentUrl,
+        width: 120,
+        height: 120,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.L
+    });
+
+    // --- 2. 設定畫布尺寸 ---
     function resizeCanvas() {
         const container = document.getElementById('canvas-container');
         canvas.width = container.offsetWidth;
         canvas.height = container.offsetHeight;
     }
     window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    // 稍微延遲執行，確保網頁元素都已載入完畢
+    setTimeout(resizeCanvas, 100);
 
+    // --- 3. 接收即時資料 ---
     socket.on('update-count', (count) => {
       document.getElementById('count').innerText = count;
     });
 
     socket.on('update-words', (wordCounts) => {
-      const list = Object.keys(wordCounts).map(word => [word, wordCounts[word] * 20 + 20]);
+      // 將資料轉為 [['詞彙', 大小], ...] 的格式
+      const list = Object.keys(wordCounts).map(word => [word, wordCounts[word] * 20 + 30]); 
+      
+      const ctx = canvas.getContext('2d');
+      if (list.length === 0) {
+        // 如果沒資料就清空畫布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+      }
+
       WordCloud(canvas, { 
         list: list, 
         gridSize: 10, 
@@ -61,25 +190,15 @@
       });
     });
 
+    // 觸發清空文字雲
     function clearWords() {
-      socket.emit('clear-words');
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if(confirm('確定要清空畫面上所有的文字嗎？')) {
+        socket.emit('clear-words');
+      }
     }
-
-    // 自動產生 QR Code 的邏輯
-    window.onload = function() {
-      // 自動抓取目前的網址 (例如 http://192.168.0.201:3000)
-      // 並把結尾的 /screen.html 拿掉，這就是學員要連的網址
-      let currentUrl = window.location.origin + "/index.html";
-      
-      document.getElementById('qrcode-url').innerText = currentUrl;
-      
-      // 使用 qrcode.js 產生 QR Code
-      new QRCode(document.getElementById("qrcode"), {
-        text: currentUrl,
-        width: 128,
-        height: 128,
+  </script>
+</body>
+</html>
         colorDark : "#000000",
         colorLight : "#ffffff",
         correctLevel : QRCode.CorrectLevel.H
