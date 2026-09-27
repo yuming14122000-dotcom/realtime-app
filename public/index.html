@@ -13,7 +13,7 @@
     button:disabled { background: #ccc; cursor: not-allowed; }
     input:disabled { background: #eee; cursor: not-allowed; }
     #step2 { display: none; }
-    #lockMsg { color: #d9534f; font-weight: bold; margin-top: 15px; display: none; }
+    #statusMsg { font-weight: bold; margin-top: 15px; display: none; }
   </style>
 </head>
 <body>
@@ -26,18 +26,20 @@
 
   <div class="card" id="step2">
     <h2>請用一個詞形容今天的課程？</h2>
-    <p>字數限制：10字以內</p>
-    <input type="text" id="wordInput" placeholder="例如：實用" maxlength="10">
+    <p>字數限制：20字以內</p>
+    <input type="text" id="wordInput" placeholder="例如：實用" maxlength="20">
     <button id="submitBtn" onclick="submitWord()">送出</button>
-    <p id="msg" style="color: green; margin-top: 15px; display: none;">已送出！請抬頭看大螢幕。</p>
     
-    <!-- 🛑 新增：鎖定提示訊息 -->
-    <p id="lockMsg">🔒 講師已暫停接收回答</p>
+    <!-- 用來顯示各種狀態：成功、鎖定、已作答 -->
+    <p id="statusMsg"></p>
   </div>
 
   <script>
     const socket = io();
     let userName = "";
+    let isRoomLocked = false;
+    let isSingleSubmit = true;
+    let hasSubmitted = false; // 紀錄自己是否已作答
 
     function joinRoom() {
       const name = document.getElementById('nameInput').value.trim();
@@ -51,31 +53,64 @@
       const word = document.getElementById('wordInput').value.trim();
       if (!word) return alert("請輸入詞彙！");
       
+      // 送出給伺服器，等待伺服器驗證
       socket.emit('submit-word', { name: userName, word: word });
-      
-      document.getElementById('wordInput').value = "";
-      document.getElementById('msg').style.display = 'block';
-      setTimeout(() => { document.getElementById('msg').style.display = 'none'; }, 3000);
     }
 
-    // 🔒 監聽房間鎖定狀態
-    socket.on('update-lock-status', (isLocked) => {
+    // ✅ 伺服器驗證成功：確認送出
+    socket.on('submit-success', () => {
+      hasSubmitted = true;
+      document.getElementById('wordInput').value = "";
+      updateUI();
+      
+      const msg = document.getElementById('statusMsg');
+      msg.innerText = "✅ 已送出！請抬頭看大螢幕。";
+      msg.style.color = "green";
+      msg.style.display = "block";
+      setTimeout(() => { 
+        if(!isRoomLocked && (!isSingleSubmit || !hasSubmitted)) {
+          msg.style.display = 'none'; 
+        }
+      }, 3000);
+    });
+
+    // ❌ 伺服器拒絕：例如重複作答
+    socket.on('submit-error', (errMsg) => {
+      alert(errMsg);
+    });
+
+    // 監聽各種狀態改變
+    socket.on('update-lock-status', (status) => { isRoomLocked = status; updateUI(); });
+    socket.on('update-submit-mode', (status) => { isSingleSubmit = status; updateUI(); });
+    
+    // 🔄 老師清空了畫布（下一題開始），重置學生的作答狀態
+    socket.on('words-cleared', () => {
+      hasSubmitted = false;
+      updateUI();
+    });
+
+    // 負責管理畫面該不該鎖定、提示什麼文字的超級大腦
+    function updateUI() {
       const input = document.getElementById('wordInput');
       const btn = document.getElementById('submitBtn');
-      const lockMsg = document.getElementById('lockMsg');
+      const msg = document.getElementById('statusMsg');
 
-      if (isLocked) {
-        input.disabled = true;
-        btn.disabled = true;
-        lockMsg.style.display = 'block';
+      if (isRoomLocked) {
+        input.disabled = true; btn.disabled = true;
+        msg.innerText = "🔒 講師已暫停接收回答";
+        msg.style.color = "#d9534f"; msg.style.display = 'block';
         input.placeholder = "房間已鎖定";
+      } else if (isSingleSubmit && hasSubmitted) {
+        input.disabled = true; btn.disabled = true;
+        msg.innerText = "✅ 您已完成作答，等待下一題";
+        msg.style.color = "#f0ad4e"; msg.style.display = 'block';
+        input.placeholder = "已完成作答";
       } else {
-        input.disabled = false;
-        btn.disabled = false;
-        lockMsg.style.display = 'none';
+        input.disabled = false; btn.disabled = false;
+        msg.style.display = 'none';
         input.placeholder = "例如：實用";
       }
-    });
+    }
   </script>
 </body>
 </html>
