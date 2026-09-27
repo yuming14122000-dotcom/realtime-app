@@ -21,7 +21,10 @@
     .controls { text-align: center; margin-top: 15px; }
     button { padding: 10px 20px; margin: 0 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #555; color: white; transition: 0.2s; }
     button:hover { background: #777; }
-    #lockBtn.locked { background: #d9534f; } /* 鎖定時變成紅色 */
+    #lockBtn.locked { background: #d9534f; }
+    /* 模式切換按鈕的顏色提示 */
+    #modeBtn.single-mode { background: #e67e22; }
+    #modeBtn.multi-mode { background: #27ae60; }
   </style>
 </head>
 <body>
@@ -43,6 +46,8 @@
   </div>
   
   <div class="controls">
+    <!-- 🔄 新增：模式切換按鈕 -->
+    <button id="modeBtn" onclick="toggleMode()">👤 一人一答</button>
     <button id="lockBtn" onclick="toggleLock()">🔒 鎖定房間</button>
     <button onclick="downloadImage()">📸 下載截圖</button>
     <button onclick="clearWords()">🗑️ 清空文字雲</button>
@@ -52,8 +57,8 @@
     const socket = io();
     const canvas = document.getElementById('cloud_canvas');
     let isLocked = false;
+    let isSingleSubmit = true;
     
-    // QR Code
     const currentUrl = window.location.href.split('?')[0]; 
     const studentUrl = currentUrl.replace('screen.html', 'index.html');
     document.getElementById('qr-text').innerText = studentUrl.replace('https://', '');
@@ -69,16 +74,26 @@
 
     socket.on('update-count', (count) => { document.getElementById('count').innerText = count; });
 
-    // 處理鎖定狀態更新
     socket.on('update-lock-status', (status) => {
       isLocked = status;
       const btn = document.getElementById('lockBtn');
       if(isLocked) {
-        btn.innerText = "🔓 解除鎖定";
-        btn.classList.add('locked');
+        btn.innerText = "🔓 解除鎖定"; btn.classList.add('locked');
       } else {
-        btn.innerText = "🔒 鎖定房間";
-        btn.classList.remove('locked');
+        btn.innerText = "🔒 鎖定房間"; btn.classList.remove('locked');
+      }
+    });
+
+    // 接收最新作答模式並更新按鈕外觀
+    socket.on('update-submit-mode', (status) => {
+      isSingleSubmit = status;
+      const btn = document.getElementById('modeBtn');
+      if(isSingleSubmit) {
+        btn.innerText = "👤 一人一答";
+        btn.className = "single-mode";
+      } else {
+        btn.innerText = "👥 開放多次";
+        btn.className = "multi-mode";
       }
     });
 
@@ -88,38 +103,29 @@
       if (list.length === 0) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
 
       WordCloud(canvas, { 
-        list: list, 
-        gridSize: 10, 
-        weightFactor: 1, 
-        color: 'random-light', 
-        backgroundColor: '#333',
-        // 🗑️ 新增：點擊文字直接刪除功能
+        list: list, gridSize: 10, weightFactor: 1, color: 'random-light', backgroundColor: '#333',
         click: function(item) {
-          if(confirm(`⚠️ 確定要刪除「${item[0]}」這個詞嗎？`)) {
-            socket.emit('delete-word', item[0]);
-          }
+          if(confirm(`⚠️ 確定要刪除「${item[0]}」這個詞嗎？`)) { socket.emit('delete-word', item[0]); }
         }
       });
     });
 
     function toggleLock() { socket.emit('toggle-lock', !isLocked); }
+    // 觸發模式切換
+    function toggleMode() { socket.emit('toggle-submit-mode', !isSingleSubmit); }
 
     function clearWords() {
-      if(confirm('確定要清空畫面上所有的文字嗎？')) { socket.emit('clear-words'); }
+      if(confirm('確定要清空畫面上所有的文字，並重置學生的作答狀態嗎？')) { socket.emit('clear-words'); }
     }
 
-    // 📸 新增：下載截圖功能
     function downloadImage() {
-      const link = document.createElement('a');
-      link.download = '文字雲紀錄.png';
-      // 確保下載時包含黑色背景
+      const link = document.createElement('a'); link.download = '文字雲紀錄.png';
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
       const tCtx = tempCanvas.getContext('2d');
       tCtx.fillStyle = '#333'; tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
       tCtx.drawImage(canvas, 0, 0);
-      link.href = tempCanvas.toDataURL("image/png");
-      link.click();
+      link.href = tempCanvas.toDataURL("image/png"); link.click();
     }
   </script>
 </body>
