@@ -17,37 +17,28 @@
       box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
       transition: all 0.3s ease; 
       cursor: zoom-in; 
+      z-index: 100;
     }
     .qr-title { font-size: 14px; margin-bottom: 5px; font-weight: bold; }
     #qrcode img { margin: 0 auto; } 
     .qr-link { margin: 5px 0 0 0; font-size: 13px; font-weight: bold; word-break: break-all; color: #0056b3; }
     
+    /* 🌟 修改：取消置中與暗場背景，改為「原地左上角放大」 */
     .qr-container.enlarged {
-      position: fixed !important; top: 50% !important; left: 50% !important;
-      transform: translate(-50%, -50%) scale(3) !important; 
-      transform-origin: center center !important; z-index: 9999;
-      box-shadow: 0 0 0 3000px rgba(0,0,0,0.85); cursor: zoom-out; 
+      transform: scale(2.2) !important; /* 原地放大 2.2 倍 */
+      z-index: 9999;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important; /* 僅加深陰影讓它看起來浮起來 */
+      cursor: zoom-out; 
     }
 
     .title-container { flex-grow: 1; text-align: center; z-index: 10; }
     
-    /* 🌟 修復全刪消失問題：加入最小寬高與提示字 */
     h1 { 
-      margin: 0; 
-      display: inline-block; 
-      min-width: 300px; /* 確保沒字時寬度不會縮到不見 */
-      min-height: 40px; /* 確保沒字時高度還在 */
-      outline: none; 
-      border-bottom: 2px dashed rgba(255,255,255,0.3); 
-      padding-bottom: 5px; 
-      transition: 0.3s; 
-      cursor: text; 
+      margin: 0; display: inline-block; min-width: 300px; min-height: 40px; 
+      outline: none; border-bottom: 2px dashed rgba(255,255,255,0.3); padding-bottom: 5px; 
+      transition: 0.3s; cursor: text; 
     }
-    /* 當裡面沒有文字時，顯示淡淡的提示 */
-    h1:empty::before {
-      content: "請點擊輸入題目...";
-      color: rgba(255, 255, 255, 0.3);
-    }
+    h1:empty::before { content: "請點擊輸入題目..."; color: rgba(255, 255, 255, 0.3); }
     h1:focus { border-bottom: 2px dashed white; }
     
     .stats { font-size: 24px; font-weight: bold; position: absolute; right: 0; top: 20px; }
@@ -92,21 +83,15 @@
     let isLocked = false;
     let isSingleSubmit = true;
     
-    // 🌟 更新傳送標題邏輯，加入防呆
     function syncTitle() {
       let newTitle = document.getElementById('mainTitle').innerText.trim();
-      // 如果老師把字全刪了，就傳送這句給學生，避免學生手機空空的
-      if (!newTitle) { 
-        newTitle = "請看大螢幕指示"; 
-      }
+      if (!newTitle) { newTitle = "請看大螢幕指示"; }
       socket.emit('change-title', newTitle);
     }
 
     socket.on('update-title', (title) => {
       const titleEl = document.getElementById('mainTitle');
-      if (titleEl.innerText !== title) {
-        titleEl.innerText = title;
-      }
+      if (titleEl.innerText !== title) { titleEl.innerText = title; }
     });
     
     const currentUrl = window.location.href.split('?')[0]; 
