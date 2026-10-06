@@ -9,10 +9,32 @@
   <style>
     body { font-family: "Microsoft JhengHei", sans-serif; background: #222; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
     .header { display: flex; justify-content: space-between; align-items: center; position: relative; height: 120px; }
-    .qr-container { background: white; color: black; padding: 10px; border-radius: 8px; text-align: center; transform: scale(0.7); transform-origin: left top; position: absolute; left: 0; top: 0; width: 140px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+    
+    /* QR Code 區塊基本樣式 */
+    .qr-container { 
+      background: white; color: black; padding: 10px; border-radius: 8px; text-align: center; 
+      transform: scale(0.7); transform-origin: left top; 
+      position: absolute; left: 0; top: 0; width: 140px; 
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+      transition: all 0.3s ease; /* 加入動畫過渡效果 */
+      cursor: zoom-in; /* 滑鼠移過去顯示放大鏡圖示 */
+    }
     .qr-title { font-size: 14px; margin-bottom: 5px; font-weight: bold; }
     #qrcode img { margin: 0 auto; } 
-    .qr-link { margin: 5px 0 0 0; font-size: 11px; font-weight: bold; word-break: break-all; color: #333; }
+    .qr-link { margin: 5px 0 0 0; font-size: 13px; font-weight: bold; word-break: break-all; color: #0056b3; }
+    
+    /* 🔍 新增：QR Code 置中放大狀態 */
+    .qr-container.enlarged {
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) scale(3) !important; /* 放大3倍並置中 */
+      transform-origin: center center !important;
+      z-index: 9999;
+      box-shadow: 0 0 0 3000px rgba(0,0,0,0.85); /* 利用超大陰影製造背景變暗效果 */
+      cursor: zoom-out; /* 提示可點擊縮小 */
+    }
+
     .title-container { flex-grow: 1; text-align: center; z-index: 10; }
     h1 { margin: 0; display: inline-block; outline: none; border-bottom: 2px dashed rgba(255,255,255,0.3); padding-bottom: 5px; transition: 0.3s; cursor: text; }
     h1:focus { border-bottom: 2px dashed white; }
@@ -22,7 +44,6 @@
     button { padding: 10px 20px; margin: 0 5px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #555; color: white; transition: 0.2s; }
     button:hover { background: #777; }
     #lockBtn.locked { background: #d9534f; }
-    /* 模式切換按鈕的顏色提示 */
     #modeBtn.single-mode { background: #e67e22; }
     #modeBtn.multi-mode { background: #27ae60; }
   </style>
@@ -30,11 +51,13 @@
 <body>
 
   <div class="header">
-    <div class="qr-container">
+    <!-- 👆 增加 onclick="toggleQR()" 觸發放大縮小功能 -->
+    <div class="qr-container" onclick="toggleQR()" title="點擊放大 QR Code">
       <div class="qr-title">掃碼參與互動</div>
       <div id="qrcode"></div>
-      <p class="qr-link" id="qr-text">網址載入中...</p>
+      <p class="qr-link" id="qr-text">短網址產生中...</p>
     </div>
+    
     <div class="title-container">
       <h1 contenteditable="true" title="點擊即可直接修改標題">一起來看看大家的想法</h1>
     </div>
@@ -46,7 +69,6 @@
   </div>
   
   <div class="controls">
-    <!-- 🔄 新增：模式切換按鈕 -->
     <button id="modeBtn" onclick="toggleMode()">👤 一人一答</button>
     <button id="lockBtn" onclick="toggleLock()">🔒 鎖定房間</button>
     <button onclick="downloadImage()">📸 下載截圖</button>
@@ -59,11 +81,37 @@
     let isLocked = false;
     let isSingleSubmit = true;
     
+    // 網址處理
     const currentUrl = window.location.href.split('?')[0]; 
     const studentUrl = currentUrl.replace('screen.html', 'index.html');
-    document.getElementById('qr-text').innerText = studentUrl.replace('https://', '');
-    new QRCode(document.getElementById("qrcode"), { text: studentUrl, width: 120, height: 120, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
+    
+    // 產生 QR Code (圖片本身依然使用原始網址，確保手機掃描解析最快最穩)
+    new QRCode(document.getElementById("qrcode"), { 
+      text: studentUrl, 
+      width: 120, height: 120, 
+      colorDark : "#000000", colorLight : "#ffffff", 
+      correctLevel : QRCode.CorrectLevel.L 
+    });
 
+    // 🌐 新增：呼叫 TinyURL API 自動將長網址轉成短網址
+    fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(studentUrl)}`)
+      .then(response => response.text())
+      .then(shortUrl => {
+        // 去除 https:// 讓文字更短更好唸 (例如 tinyurl.com/abcd)
+        document.getElementById('qr-text').innerText = shortUrl.replace('https://', '');
+      })
+      .catch(error => {
+        // 萬一短網址服務斷線，退回顯示原始網址
+        document.getElementById('qr-text').innerText = studentUrl.replace('https://', '');
+      });
+
+    // 🔍 新增：QR Code 點擊放大/縮小切換功能
+    function toggleQR() {
+      const qrContainer = document.querySelector('.qr-container');
+      qrContainer.classList.toggle('enlarged');
+    }
+
+    // 畫布與 Socket.io 邏輯
     function resizeCanvas() {
         const container = document.getElementById('canvas-container');
         canvas.width = container.offsetWidth;
@@ -84,16 +132,13 @@
       }
     });
 
-    // 接收最新作答模式並更新按鈕外觀
     socket.on('update-submit-mode', (status) => {
       isSingleSubmit = status;
       const btn = document.getElementById('modeBtn');
       if(isSingleSubmit) {
-        btn.innerText = "👤 一人一答";
-        btn.className = "single-mode";
+        btn.innerText = "👤 一人一答"; btn.className = "single-mode";
       } else {
-        btn.innerText = "👥 開放多次";
-        btn.className = "multi-mode";
+        btn.innerText = "👥 開放多次"; btn.className = "multi-mode";
       }
     });
 
@@ -111,13 +156,11 @@
     });
 
     function toggleLock() { socket.emit('toggle-lock', !isLocked); }
-    // 觸發模式切換
     function toggleMode() { socket.emit('toggle-submit-mode', !isSingleSubmit); }
-
     function clearWords() {
       if(confirm('確定要清空畫面上所有的文字，並重置學生的作答狀態嗎？')) { socket.emit('clear-words'); }
     }
-
+    
     function downloadImage() {
       const link = document.createElement('a'); link.download = '文字雲紀錄.png';
       const tempCanvas = document.createElement('canvas');
