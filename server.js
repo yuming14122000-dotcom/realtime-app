@@ -9,8 +9,11 @@ let onlineCount = 0;
 let wordCounts = {};
 let rawResponses = [];
 let isLocked = false; 
-let isSingleSubmit = true; // 預設一人一答
-const submittedUsers = new Set(); // 紀錄已作答的學生名單
+let isSingleSubmit = true; 
+const submittedUsers = new Set(); 
+
+// 🌟 新增：讓伺服器記住目前的題目
+let currentTitle = "一起來看看大家的想法"; 
 
 const sensitiveWords = ["靠北", "智障", "白痴", "去死", "幹", "無聊"];
 
@@ -18,10 +21,12 @@ io.on('connection', (socket) => {
   onlineCount++;
   io.emit('update-count', onlineCount);
   io.emit('update-lock-status', isLocked);
-  io.emit('update-submit-mode', isSingleSubmit); // 同步目前的作答模式
+  io.emit('update-submit-mode', isSingleSubmit);
+  
+  // 🌟 當學生或新螢幕連線時，把最新題目傳給他們
+  socket.emit('update-title', currentTitle); 
   socket.emit('update-words', wordCounts);
 
-  // 接收學生送出的詞
   socket.on('submit-word', (data) => {
     if (isLocked) return;
 
@@ -29,7 +34,6 @@ io.on('connection', (socket) => {
     let userName = data.name.trim();
 
     if (word) {
-      // 🛑 檢查是否為「一人一答」模式，且該用戶已作答過
       if (isSingleSubmit && submittedUsers.has(userName)) {
         socket.emit('submit-error', '⚠️ 您已作答過囉！(目前設定一人限答一次)');
         return;
@@ -38,15 +42,18 @@ io.on('connection', (socket) => {
       const isSensitive = sensitiveWords.some(sw => word.includes(sw));
       if (isSensitive) return; 
 
-      // ✅ 標記該用戶已成功作答
       submittedUsers.add(userName);
       
       wordCounts[word] = (wordCounts[word] || 0) + 1;
       io.emit('update-words', wordCounts);
-
-      // 回傳成功訊息給該位學生，讓他手機畫面更新
       socket.emit('submit-success');
     }
+  });
+
+  // 🌟 接收大螢幕改題目的指令，並廣播給全班
+  socket.on('change-title', (newTitle) => {
+    currentTitle = newTitle;
+    io.emit('update-title', currentTitle);
   });
 
   socket.on('toggle-lock', (status) => {
@@ -54,7 +61,6 @@ io.on('connection', (socket) => {
     io.emit('update-lock-status', isLocked);
   });
 
-  // 🔄 切換「一人一答」與「開放多次」
   socket.on('toggle-submit-mode', (status) => {
     isSingleSubmit = status;
     io.emit('update-submit-mode', isSingleSubmit);
@@ -75,9 +81,9 @@ io.on('connection', (socket) => {
   socket.on('clear-words', () => {
     wordCounts = {};
     rawResponses = [];
-    submittedUsers.clear(); // 🗑️ 清空作答紀錄，讓大家可以重新回答下一題
+    submittedUsers.clear(); 
     io.emit('update-words', wordCounts);
-    io.emit('words-cleared'); // 通知所有學生的手機解除鎖定狀態
+    io.emit('words-cleared'); 
   });
 });
 
