@@ -30,9 +30,26 @@
     }
 
     .title-container { flex-grow: 1; text-align: center; z-index: 10; }
-    /* 🌟 加入游標提示，告訴老師點擊空白處可以儲存 */
-    h1 { margin: 0; display: inline-block; outline: none; border-bottom: 2px dashed rgba(255,255,255,0.3); padding-bottom: 5px; transition: 0.3s; cursor: text; }
+    
+    /* 🌟 修復全刪消失問題：加入最小寬高與提示字 */
+    h1 { 
+      margin: 0; 
+      display: inline-block; 
+      min-width: 300px; /* 確保沒字時寬度不會縮到不見 */
+      min-height: 40px; /* 確保沒字時高度還在 */
+      outline: none; 
+      border-bottom: 2px dashed rgba(255,255,255,0.3); 
+      padding-bottom: 5px; 
+      transition: 0.3s; 
+      cursor: text; 
+    }
+    /* 當裡面沒有文字時，顯示淡淡的提示 */
+    h1:empty::before {
+      content: "請點擊輸入題目...";
+      color: rgba(255, 255, 255, 0.3);
+    }
     h1:focus { border-bottom: 2px dashed white; }
+    
     .stats { font-size: 24px; font-weight: bold; position: absolute; right: 0; top: 20px; }
     #canvas-container { flex-grow: 1; background: #333; border-radius: 10px; position: relative; width: 100%; margin-top: 10px; }
     .controls { text-align: center; margin-top: 15px; }
@@ -53,7 +70,6 @@
     </div>
     
     <div class="title-container">
-      <!-- 🌟 新增 onblur="syncTitle()"：當滑鼠點擊旁邊空白處(失去焦點)時觸發更新 -->
       <h1 id="mainTitle" contenteditable="true" title="點擊修改，改完點擊旁邊空白處即可同步給學生" onblur="syncTitle()">一起來看看大家的想法</h1>
     </div>
     <div class="stats">👥 在線人數：<span id="count">0</span></div>
@@ -76,13 +92,16 @@
     let isLocked = false;
     let isSingleSubmit = true;
     
-    // 🌟 將新標題傳送給伺服器
+    // 🌟 更新傳送標題邏輯，加入防呆
     function syncTitle() {
-      const newTitle = document.getElementById('mainTitle').innerText;
+      let newTitle = document.getElementById('mainTitle').innerText.trim();
+      // 如果老師把字全刪了，就傳送這句給學生，避免學生手機空空的
+      if (!newTitle) { 
+        newTitle = "請看大螢幕指示"; 
+      }
       socket.emit('change-title', newTitle);
     }
 
-    // 🌟 接收伺服器最新的標題（確保多個螢幕時保持同步）
     socket.on('update-title', (title) => {
       const titleEl = document.getElementById('mainTitle');
       if (titleEl.innerText !== title) {
